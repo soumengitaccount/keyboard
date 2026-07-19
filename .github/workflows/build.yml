@@ -1,4 +1,4 @@
-name: Build Flutter .deb
+name: Build Flutter.deb
 
 on:
   push:
