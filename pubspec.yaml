@@ -1,0 +1,74 @@
+name: bangla_keyboard
+description: Modern Avro Keyboard built with Flutter Desktop.
+
+publish_to: "none"
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.6.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # State Management
+  flutter_riverpod: ^2.6.1
+
+  # Window Management
+  window_manager: ^0.5.0
+
+  # System Tray
+  tray_manager: ^0.5.1
+
+  # Screen Information
+  screen_retriever: ^0.2.0
+
+  # Preferences
+  shared_preferences: ^2.5.3
+
+  # FFI
+  ffi: ^2.1.4
+
+  # Collections
+  collection: ^1.19.1
+
+  # Path
+  path: ^1.9.1
+
+  # JSON
+  json_annotation: ^4.9.0
+
+  # Icons
+  fluentui_system_icons: ^1.1.273
+
+  # Google Fonts
+  google_fonts: ^6.3.1
+
+  # Window Blur (Windows/macOS)
+  flutter_acrylic: ^1.1.4
+
+  # Logging
+  logger: ^2.6.1
+  characters: ^1.3.0
+  sqflite_common_ffi: ^2.3.4
+
+dev_dependencies:
+
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+
+  build_runner: ^2.5.4
+
+  json_serializable: ^6.9.5
+
+flutter:
+
+  uses-material-design: true
+
+  assets:
+    - assets/dictionary/

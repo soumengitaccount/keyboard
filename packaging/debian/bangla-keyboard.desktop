@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Bangla Keyboard
+Comment=Modern Avro-style Bangla keyboard
+Exec=bangla-keyboard
+Icon=bangla-keyboard
+Terminal=false
+Categories=Utility;GTK;
+StartupWMClass=com.banglakeyboard.app
