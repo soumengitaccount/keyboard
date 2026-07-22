@@ -9,11 +9,17 @@ namespace avro {
 
 
 
+namespace {
 std::unique_ptr<
 flutter::EventSink<
 flutter::EncodableValue
 >
 > keyEventSink;
+
+// The EventChannel must outlive RegisterNativeBridge. Keeping it at runner
+// lifetime prevents the stream handler from being destroyed after startup.
+std::unique_ptr<flutter::EventChannel<flutter::EncodableValue>> keyEventChannel;
+}  // namespace
 
 
 
@@ -25,7 +31,7 @@ void InitializeKeyEventChannel(
 {
 
 
-    auto channel =
+    keyEventChannel =
         std::make_unique<
         flutter::EventChannel<
         flutter::EncodableValue
@@ -43,7 +49,7 @@ void InitializeKeyEventChannel(
 
 
 
-    channel->SetStreamHandler(
+    keyEventChannel->SetStreamHandler(
 
         std::make_unique<
         flutter::StreamHandlerFunctions<

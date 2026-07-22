@@ -1,38 +1,40 @@
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../services/keyboard_service.dart';
+import '../../app/app_state.dart';
 import '../../services/native_bridge.dart';
 import '../../services/preferences.dart';
 import '../../widgets/sidebar.dart';
 import '../../widgets/top_bar.dart';
 import '../layout/layout_viewer.dart';
+import '../settings/settings_screen.dart';
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _selectedIndex = 0;
-  bool _banglaMode = PreferencesService.instance.banglaMode;
 
   Future<void> _setBanglaMode(bool value) async {
-    setState(() => _banglaMode = value);
-    await PreferencesService.instance.setBanglaMode(value);
+    await LanguageController.instance.setBanglaEnabled(value);
     await NativeBridge.instance.toggleLanguage(value);
   }
 
   @override
   Widget build(BuildContext context) {
+    final banglaMode = ref.watch(languageControllerProvider).banglaEnabled;
     final pages = <Widget>[
       _DashboardPage(onOpenLayout: () => setState(() => _selectedIndex = 1)),
       const LayoutViewer(),
       const _DictionaryPage(),
       const _AppearancePage(),
       const _HotkeysPage(),
+      const SettingsScreen(),
       const _AboutPage(),
     ];
     return Scaffold(
@@ -40,7 +42,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           children: [
             TopBar(
-                banglaEnabled: _banglaMode, onLanguageChanged: _setBanglaMode),
+                banglaEnabled: banglaMode, onLanguageChanged: _setBanglaMode),
             Expanded(
               child: Row(
                 children: [
@@ -69,101 +71,96 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class _DashboardPage extends StatelessWidget {
+class _DashboardPage extends ConsumerWidget {
   const _DashboardPage({required this.onOpenLayout});
   final VoidCallback onOpenLayout;
 
   @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: KeyboardService.instance,
-      builder: (context, _) {
-        final keyboard = KeyboardService.instance;
-        return ListView(
-          children: [
-            Text('Avro Keyboard',
-                style: Theme.of(context)
-                    .textTheme
-                    .headlineMedium
-                    ?.copyWith(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 8),
-            Text('A quiet, system-wide Bangla typing companion.',
-                style: Theme.of(context).textTheme.bodyLarge),
-            const SizedBox(height: 28),
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                    colors: [Color(0xFF155EEF), Color(0xFF5B8CFF)]),
-                borderRadius: BorderRadius.circular(22),
-              ),
-              child: Row(children: [
-                const CircleAvatar(
-                    radius: 27,
-                    backgroundColor: Color(0x33FFFFFF),
-                    child: Icon(FluentIcons.keyboard_24_regular,
-                        color: Colors.white, size: 28)),
-                const SizedBox(width: 18),
-                Expanded(
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                      Text(
-                          keyboard.enabled
-                              ? 'Bangla typing is ready'
-                              : 'Keyboard is paused',
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 4),
-                      Text(
-                          keyboard.enabled
-                              ? 'Use Ctrl + Alt + B to switch language anywhere.'
-                              : 'Turn it on below to resume global typing.',
-                          style: const TextStyle(color: Color(0xDFFFFFFF))),
-                    ])),
-                Switch(
-                    value: keyboard.enabled,
-                    activeThumbColor: Colors.white,
-                    activeTrackColor: const Color(0x660B3EAC),
-                    onChanged: keyboard.setEnabled),
-              ]),
-            ),
-            const SizedBox(height: 22),
-            Row(children: [
-              _StatCard(
-                  icon: FluentIcons.text_field_24_regular,
-                  label: 'Current layout',
-                  value: PreferencesService.instance.layout),
-              const SizedBox(width: 16),
-              _StatCard(
-                  icon: FluentIcons.key_24_regular,
-                  label: 'Language switch',
-                  value: 'Ctrl + Alt + B'),
-              const SizedBox(width: 16),
-              _StatCard(
-                  icon: FluentIcons.shield_checkmark_24_regular,
-                  label: 'Unicode output',
-                  value: 'Enabled'),
-            ]),
-            const SizedBox(height: 28),
-            Text('Live composition',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 12),
-            _CompositionCard(
-                preview: keyboard.preview, candidates: keyboard.candidates),
-            const SizedBox(height: 20),
-            OutlinedButton.icon(
-                onPressed: onOpenLayout,
-                icon: const Icon(FluentIcons.keyboard_24_regular),
-                label: const Text('View keyboard layout')),
-          ],
-        );
-      },
+  Widget build(BuildContext context, WidgetRef ref) {
+    final keyboard = ref.watch(keyboardServiceProvider);
+    return ListView(
+      children: [
+        Text('Avro Keyboard',
+            style: Theme.of(context)
+                .textTheme
+                .headlineMedium
+                ?.copyWith(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        Text('A quiet, system-wide Bangla typing companion.',
+            style: Theme.of(context).textTheme.bodyLarge),
+        const SizedBox(height: 28),
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+                colors: [Color(0xFF155EEF), Color(0xFF5B8CFF)]),
+            borderRadius: BorderRadius.circular(22),
+          ),
+          child: Row(children: [
+            const CircleAvatar(
+                radius: 27,
+                backgroundColor: Color(0x33FFFFFF),
+                child: Icon(FluentIcons.keyboard_24_regular,
+                    color: Colors.white, size: 28)),
+            const SizedBox(width: 18),
+            Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  Text(
+                      keyboard.enabled
+                          ? 'Bangla typing is ready'
+                          : 'Keyboard is paused',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 4),
+                  Text(
+                      keyboard.enabled
+                          ? 'Use Ctrl + Alt + B to switch language anywhere.'
+                          : 'Turn it on below to resume global typing.',
+                      style: const TextStyle(color: Color(0xDFFFFFFF))),
+                ])),
+            Switch(
+                value: keyboard.enabled,
+                activeThumbColor: Colors.white,
+                activeTrackColor: const Color(0x660B3EAC),
+                onChanged: keyboard.setEnabled),
+          ]),
+        ),
+        const SizedBox(height: 22),
+        Row(children: [
+          _StatCard(
+              icon: FluentIcons.text_field_24_regular,
+              label: 'Current layout',
+              value: PreferencesService.instance.layout),
+          const SizedBox(width: 16),
+          _StatCard(
+              icon: FluentIcons.key_24_regular,
+              label: 'Language switch',
+              value: 'Ctrl + Alt + B'),
+          const SizedBox(width: 16),
+          _StatCard(
+              icon: FluentIcons.shield_checkmark_24_regular,
+              label: 'Unicode output',
+              value: 'Enabled'),
+        ]),
+        const SizedBox(height: 28),
+        Text('Live composition',
+            style: Theme.of(context)
+                .textTheme
+                .titleLarge
+                ?.copyWith(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 12),
+        _CompositionCard(
+            preview: keyboard.preview, candidates: keyboard.candidates),
+        const SizedBox(height: 20),
+        OutlinedButton.icon(
+            onPressed: onOpenLayout,
+            icon: const Icon(FluentIcons.keyboard_24_regular),
+            label: const Text('View keyboard layout')),
+      ],
     );
   }
 }

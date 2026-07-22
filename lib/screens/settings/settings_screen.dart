@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
-import '../../services/keyboard_service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../app/app_state.dart';
 import '../../services/preferences.dart';
 import '../../widgets/setting_card.dart';
 
-class SettingsScreen extends StatefulWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
   @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late bool startup, preview, suggestions, backspace, autocorrect;
   @override
   void initState() {
@@ -33,13 +34,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
         const Text('Control how Avro works outside this window.'),
         const SizedBox(height: 24),
         SettingCard(
+            title: 'Theme',
+            description: 'Choose the appearance of the Avro control window.',
+            trailing: DropdownButton<ThemeMode>(
+              value: ref.watch(themeControllerProvider).mode,
+              underline: const SizedBox.shrink(),
+              onChanged: (mode) {
+                if (mode != null) {
+                  ref.read(themeControllerProvider).setMode(mode);
+                }
+              },
+              items: const [
+                DropdownMenuItem(value: ThemeMode.system, child: Text('System')),
+                DropdownMenuItem(value: ThemeMode.light, child: Text('Light')),
+                DropdownMenuItem(value: ThemeMode.dark, child: Text('Dark')),
+              ],
+            )),
+        SettingCard(
             title: 'Enable Avro Keyboard',
             description: 'Listen for global keys and send Unicode Bangla text.',
             trailing: AnimatedBuilder(
-                animation: KeyboardService.instance,
+                animation: ref.watch(keyboardServiceProvider),
                 builder: (_, __) => Switch(
-                    value: KeyboardService.instance.enabled,
-                    onChanged: KeyboardService.instance.setEnabled))),
+                    value: ref.watch(keyboardServiceProvider).enabled,
+                    onChanged: ref.read(keyboardServiceProvider).setEnabled))),
         SettingCard(
             title: 'Start at login',
             description:

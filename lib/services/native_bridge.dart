@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/services.dart';
 import 'package:logger/logger.dart';
 
@@ -12,11 +14,17 @@ class NativeBridge {
     "avro/native",
   );
 
+  /// Windows and macOS runners register the native hook channel. Linux needs
+  /// an IBus/Fcitx integration instead of a raw global hook (especially on
+  /// Wayland), so never invoke an unregistered channel there.
+  bool get supportsGlobalKeyboard => Platform.isWindows || Platform.isMacOS;
+
   // ------------------------------------------------------------
   // Enable global keyboard listener
   // ------------------------------------------------------------
 
   Future<bool> enableKeyboard() async {
+    if (!supportsGlobalKeyboard) return false;
     try {
       final result = await _channel.invokeMethod<bool>(
         "enableKeyboard",
@@ -38,6 +46,7 @@ class NativeBridge {
   // ------------------------------------------------------------
 
   Future<bool> disableKeyboard() async {
+    if (!supportsGlobalKeyboard) return false;
     try {
       final result = await _channel.invokeMethod<bool>(
         "disableKeyboard",
@@ -61,6 +70,7 @@ class NativeBridge {
   Future<void> sendText(
     String text,
   ) async {
+    if (!supportsGlobalKeyboard) return;
     try {
       await _channel.invokeMethod(
         "sendText",
@@ -76,6 +86,17 @@ class NativeBridge {
     }
   }
 
+  /// Sends a physical Backspace to the foreground application. This is used
+  /// only when there is no uncommitted phonetic composition to edit in Dart.
+  Future<void> sendBackspace() async {
+    if (!supportsGlobalKeyboard) return;
+    try {
+      await _channel.invokeMethod<void>('sendBackspace');
+    } catch (e) {
+      _logger.e('Backspace injection failed', error: e);
+    }
+  }
+
   // ------------------------------------------------------------
   // Change keyboard layout
   // ------------------------------------------------------------
@@ -83,6 +104,7 @@ class NativeBridge {
   Future<void> changeLayout(
     String layout,
   ) async {
+    if (!supportsGlobalKeyboard) return;
     try {
       await _channel.invokeMethod(
         "changeLayout",
@@ -105,6 +127,7 @@ class NativeBridge {
   Future<void> toggleLanguage(
     bool bangla,
   ) async {
+    if (!supportsGlobalKeyboard) return;
     try {
       await _channel.invokeMethod(
         "toggleLanguage",
@@ -125,6 +148,7 @@ class NativeBridge {
   // ------------------------------------------------------------
 
   Future<bool> isAvailable() async {
+    if (!supportsGlobalKeyboard) return false;
     try {
       final result = await _channel.invokeMethod<bool>(
         "status",

@@ -11,6 +11,8 @@ import 'services/dictionary_service.dart';
 import 'services/keyboard_service.dart';
 import 'services/candidate_window_service.dart';
 import 'services/key_event_listener.dart';
+import 'services/native_bridge.dart';
+import 'services/tray_service.dart';
 import 'database/dictionary_database.dart';
 
 Future<void> main() async {
@@ -19,7 +21,12 @@ Future<void> main() async {
   await PreferencesService.instance.initialize();
   await DictionaryService.instance.load();
   await KeyboardService.instance.initialize();
-  KeyEventListener().start();
+  await NativeBridge.instance.toggleLanguage(
+    PreferencesService.instance.banglaMode,
+  );
+  if (NativeBridge.instance.supportsGlobalKeyboard) {
+    KeyEventListener().start();
+  }
   await CandidateWindowService.instance.initialize();
   // Initialize desktop window APIs
   await Window.initialize();
@@ -54,6 +61,7 @@ Future<void> main() async {
       await windowManager.focus();
     },
   );
+  await AvroTrayService.instance.initialize();
 
   runApp(
     const ProviderScope(

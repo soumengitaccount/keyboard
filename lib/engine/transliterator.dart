@@ -1,12 +1,9 @@
 import 'input_buffer.dart';
 // import 'phonetic_rules.dart';
 import 'phonetic_parser.dart';
-import 'backspace_engine.dart';
 
 class Transliterator {
   final InputBuffer _buffer = InputBuffer();
-  final BackspaceEngine _backspace = BackspaceEngine();
-
   String get currentText => _buffer.text;
 
   /// Add English key input
@@ -22,17 +19,11 @@ class Transliterator {
 
   /// Remove last typed character
   String backspace() {
-    final result = _backspace.removeLast(
-      convert(
-        _buffer.text,
-      ),
-    );
-
-    _buffer.clear();
-
-    _buffer.add(result);
-
-    return result;
+    // Keep the source phonetic sequence in the buffer. Storing the rendered
+    // Bengali text here makes the next key impossible for the parser to
+    // understand (for example: k, backspace, k).
+    _buffer.removeLast();
+    return convert(_buffer.text);
   }
 
   /// Clear current input

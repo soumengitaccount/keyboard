@@ -163,6 +163,17 @@ void RegisterNativeBridge(
 
             }
 
+            if (method == "sendBackspace") {
+                INPUT input{};
+                input.type = INPUT_KEYBOARD;
+                input.ki.wVk = VK_BACK;
+                SendInput(1, &input, sizeof(INPUT));
+                input.ki.dwFlags = KEYEVENTF_KEYUP;
+                SendInput(1, &input, sizeof(INPUT));
+                result(flutter::EncodableValue(true));
+                return;
+            }
+
 
 
 

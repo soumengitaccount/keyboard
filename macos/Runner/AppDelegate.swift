@@ -23,6 +23,9 @@ class AppDelegate: FlutterAppDelegate {
       case "sendText":
         if let text = (call.arguments as? [String: Any])?["text"] as? String { self.sendUnicode(text) }
         result(true)
+      case "sendBackspace":
+        self.sendKey(keyCode: 51)
+        result(true)
       case "status": result(true)
       default: result(FlutterMethodNotImplemented)
       }
@@ -40,8 +43,9 @@ class AppDelegate: FlutterAppDelegate {
       guard type == .keyDown, let userInfo else { return Unmanaged.passUnretained(event) }
       let app = Unmanaged<AppDelegate>.fromOpaque(userInfo).takeUnretainedValue()
       if let key = app.character(for: event) {
+        guard app.banglaMode else { return Unmanaged.passUnretained(event) }
         DispatchQueue.main.async { app.eventSink?( ["key": key] ) }
-        return app.banglaMode ? nil : Unmanaged.passUnretained(event)
+        return nil
       }
       return Unmanaged.passUnretained(event)
     }, userInfo: Unmanaged.passUnretained(self).toOpaque())
@@ -65,6 +69,13 @@ class AppDelegate: FlutterAppDelegate {
     guard let event = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: true) else { return }
     event.keyboardSetUnicodeString(stringLength: text.utf16.count, unicodeString: Array(text.utf16))
     event.post(tap: .cghidEventTap)
+  }
+
+  private func sendKey(keyCode: CGKeyCode) {
+    guard let down = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: true),
+          let up = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: false) else { return }
+    down.post(tap: .cghidEventTap)
+    up.post(tap: .cghidEventTap)
   }
   override func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
     return true

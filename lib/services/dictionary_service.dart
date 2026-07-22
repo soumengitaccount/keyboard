@@ -37,29 +37,21 @@ class DictionaryService {
           ),
         );
 
+      if (_words.isEmpty) {
+        _loadFallbackWords();
+      }
       _loaded = true;
     } catch (e) {
-      // Fallback dictionary
-
-      _words.addAll(
-        [
-          "আমি",
-          "আমার",
-          "আমাকে",
-          "বাংলা",
-          "বাংলাদেশ",
-          "বাংলার",
-          "ভাষা",
-          "ভালো",
-          "কথা",
-          "কম্পিউটার",
-          "কীবোর্ড",
-          "অভ্র",
-        ],
-      );
-
+      _loadFallbackWords();
       _loaded = true;
     }
+  }
+
+  void _loadFallbackWords() {
+    _words.addAll(const [
+      'আমি', 'আমার', 'আমাকে', 'বাংলা', 'বাংলাদেশ', 'বাংলার', 'ভাষা',
+      'ভালো', 'কথা', 'কম্পিউটার', 'কীবোর্ড', 'অভ্র',
+    ]);
   }
 
   // ------------------------------------------------------------

@@ -1,6 +1,7 @@
 #include "keyboard_hook.h"
 
 #include <iostream>
+#include <cctype>
 
 #include "key_event_channel.h"
 
@@ -121,10 +122,7 @@ LRESULT CALLBACK KeyboardProc(
           return CallNextHookEx(keyboardHook, nCode, wParam, lParam);
         }
 
-        if(
-            wParam ==
-            WM_KEYDOWN
-        )
+        if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN)
         {
 
 
@@ -155,21 +153,47 @@ LRESULT CALLBACK KeyboardProc(
                 );
 
 
+            // The documented language switch is handled before the general
+            // shortcut escape hatch, so the foreground app never receives it.
+            if (key == 'B' &&
+                (GetAsyncKeyState(VK_CONTROL) & 0x8000) &&
+                (GetAsyncKeyState(VK_MENU) & 0x8000)) {
+              SendKeyEvent("__toggle_language__");
+              return 1;
+            }
+
+            // Preserve OS and application shortcuts. Capturing Ctrl+C, Alt+Tab
+            // or Win shortcuts would make the desktop unusable while typing.
+            if ((GetAsyncKeyState(VK_CONTROL) & 0x8000) ||
+                (GetAsyncKeyState(VK_MENU) & 0x8000) ||
+                (GetAsyncKeyState(VK_LWIN) & 0x8000) ||
+                (GetAsyncKeyState(VK_RWIN) & 0x8000)) {
+              return CallNextHookEx(keyboardHook, nCode, wParam, lParam);
+            }
+
+            // English mode must be completely transparent.  In particular, do
+            // not forward keys to Dart: it could otherwise inject a second
+            // (Bangla) copy when the user later presses a word boundary.
+            if (!banglaEnabled) {
+              return CallNextHookEx(keyboardHook, nCode, wParam, lParam);
+            }
+
             if (key == VK_SPACE) {
                 SendKeyEvent(" ");
-                if (banglaEnabled) return 1;
+                return 1;
             } else if (key == VK_BACK) {
-                SendKeyEvent("\\b");
-                if (banglaEnabled) return 1;
+                SendKeyEvent("\b");
+                return 1;
             } else if (key == VK_RETURN) {
-                SendKeyEvent("\\n");
-                if (banglaEnabled) return 1;
+                SendKeyEvent("\n");
+                return 1;
             } else if(character)
             {
-                SendKeyEvent(std::string(1, character));
+                SendKeyEvent(std::string(1, static_cast<char>(
+                    std::tolower(static_cast<unsigned char>(character)))));
                 // Dart commits the current phonetic buffer by calling SendInput.
                 // Do not let the Latin source character reach the foreground app.
-                if (banglaEnabled) return 1;
+                return 1;
             }
 
 

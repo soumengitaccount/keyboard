@@ -40,6 +40,11 @@ class Sidebar extends StatelessWidget {
       title: 'Hotkeys',
     ),
     _SidebarItem(
+      icon: FluentIcons.settings_24_regular,
+      selectedIcon: FluentIcons.settings_24_filled,
+      title: 'Settings',
+    ),
+    _SidebarItem(
       icon: FluentIcons.info_24_regular,
       selectedIcon: FluentIcons.info_24_filled,
       title: 'About',

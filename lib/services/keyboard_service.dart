@@ -28,12 +28,15 @@ class KeyboardService extends ChangeNotifier {
 
   String get preview => _preview;
 
+  String get phoneticInput => _translator.currentText;
+
   // ------------------------------------------------------------
   // Initialize service
   // ------------------------------------------------------------
 
   Future<void> initialize() async {
-    _enabled = PreferencesService.instance.keyboardEnabled;
+    _enabled = PreferencesService.instance.keyboardEnabled &&
+        NativeBridge.instance.supportsGlobalKeyboard;
 
     if (_enabled) {
       await NativeBridge.instance.enableKeyboard();
@@ -47,13 +50,11 @@ class KeyboardService extends ChangeNotifier {
   Future<void> setEnabled(
     bool value,
   ) async {
-    _enabled = value;
+    _enabled = value && NativeBridge.instance.supportsGlobalKeyboard;
 
-    await PreferencesService.instance.setKeyboardEnabled(
-      value,
-    );
+    await PreferencesService.instance.setKeyboardEnabled(value);
 
-    if (value) {
+    if (_enabled) {
       await NativeBridge.instance.enableKeyboard();
     } else {
       await NativeBridge.instance.disableKeyboard();
@@ -69,7 +70,7 @@ class KeyboardService extends ChangeNotifier {
   Future<void> processKey(
     String key,
   ) async {
-    if (!_enabled) {
+    if (!_enabled || key.isEmpty) {
       return;
     }
 
@@ -93,9 +94,8 @@ class KeyboardService extends ChangeNotifier {
       return;
     }
 
-    final finalText = _autoCorrect.correct(
-      _preview,
-    );
+    final corrected = _autoCorrect.correct(phoneticInput);
+    final finalText = corrected == phoneticInput ? _preview : corrected;
 
     await NativeBridge.instance.sendText(
       finalText,
@@ -112,7 +112,11 @@ class KeyboardService extends ChangeNotifier {
   // Backspace handling
   // ------------------------------------------------------------
 
-  void backspace() {
+  /// Returns true when a character was removed from the in-memory
+  /// composition. Callers should forward Backspace to the target app when it
+  /// returns false.
+  bool backspace() {
+    if (_preview.isEmpty) return false;
     _preview = _translator.backspace();
 
     _candidates = _candidateEngine.search(
@@ -120,6 +124,7 @@ class KeyboardService extends ChangeNotifier {
     );
 
     notifyListeners();
+    return true;
   }
 
   // ------------------------------------------------------------
