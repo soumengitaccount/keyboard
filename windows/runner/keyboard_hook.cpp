@@ -1,226 +1,197 @@
 #include "keyboard_hook.h"
 
-#include <iostream>
-#include <cctype>
+#include <array>
+#include <iterator>
+#include <optional>
+#include <string>
 
 #include "key_event_channel.h"
 
 namespace avro {
+namespace {
 
+HHOOK keyboard_hook = nullptr;
+bool keyboard_enabled = false;
+bool bangla_enabled = true;
 
-HHOOK keyboardHook = nullptr;
+// A blocked key down should have its matching key up blocked as well. Some
+// controls react to the otherwise-unpaired key-up message.
+std::array<bool, 256> suppressed_key_ups{};
 
-
-
-bool keyboardEnabled = false;
-bool banglaEnabled = true;
-
-
-
-
-
-bool StartKeyboardHook()
-{
-
-
-    if(keyboardHook != nullptr)
-    {
-        return true;
-    }
-
-
-
-
-    keyboardHook =
-        SetWindowsHookEx(
-            WH_KEYBOARD_LL,
-            KeyboardProc,
-            GetModuleHandle(nullptr),
-            0
-        );
-
-
-
-    keyboardEnabled =
-        keyboardHook != nullptr;
-
-
-
-    return keyboardEnabled;
-
+bool IsModifierDown(int virtual_key) {
+  return (GetAsyncKeyState(virtual_key) & 0x8000) != 0;
 }
 
+void MarkKeyUpSuppressed(DWORD virtual_key) {
+  if (virtual_key < suppressed_key_ups.size()) {
+    suppressed_key_ups[virtual_key] = true;
+  }
+}
 
+bool ConsumeSuppressedKeyUp(DWORD virtual_key) {
+  if (virtual_key >= suppressed_key_ups.size() ||
+      !suppressed_key_ups[virtual_key]) {
+    return false;
+  }
+  suppressed_key_ups[virtual_key] = false;
+  return true;
+}
 
+std::optional<std::string> WideToUtf8(const wchar_t* text, int length) {
+  const int required = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, text,
+                                           length, nullptr, 0, nullptr, nullptr);
+  if (required <= 0) {
+    return std::nullopt;
+  }
 
+  std::string utf8(required, '\0');
+  if (WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, text, length,
+                          utf8.data(), required, nullptr, nullptr) != required) {
+    return std::nullopt;
+  }
+  return utf8;
+}
 
+// Translate the actual key press instead of using MapVirtualKey. That keeps
+// shifted punctuation intact when Dart commits it after a phonetic word.
+std::optional<std::string> PrintableKey(const KBDLLHOOKSTRUCT& key_info) {
+  BYTE keyboard_state[256]{};
+  if (!GetKeyboardState(keyboard_state)) {
+    return std::nullopt;
+  }
 
-bool StopKeyboardHook()
-{
+  if (key_info.vkCode < std::size(keyboard_state)) {
+    keyboard_state[key_info.vkCode] |= 0x80;
+  }
 
+  wchar_t characters[8]{};
+  const int length = ToUnicodeEx(
+      key_info.vkCode, key_info.scanCode, keyboard_state, characters,
+      static_cast<int>(std::size(characters)), 0, GetKeyboardLayout(0));
+  if (length <= 0) {
+    // A dead key has no stable standalone text to send through the phonetic
+    // engine, so leave it to Windows rather than swallowing it.
+    return std::nullopt;
+  }
 
-    if(keyboardHook)
-    {
+  return WideToUtf8(characters, length);
+}
 
-        UnhookWindowsHookEx(
-            keyboardHook
-        );
+bool DispatchAndSuppress(DWORD virtual_key, const std::string& key) {
+  if (!SendKeyEvent(key)) {
+    return false;
+  }
+  MarkKeyUpSuppressed(virtual_key);
+  return true;
+}
 
+}  // namespace
 
-        keyboardHook = nullptr;
-
-    }
-
-
-
-    keyboardEnabled=false;
-
-
+bool StartKeyboardHook() {
+  if (keyboard_hook != nullptr) {
     return true;
+  }
 
+  keyboard_hook = SetWindowsHookExW(WH_KEYBOARD_LL, KeyboardProc,
+                                    GetModuleHandle(nullptr), 0);
+  keyboard_enabled = keyboard_hook != nullptr;
+  return keyboard_enabled;
 }
 
-void SetBanglaMode(bool enabled) { banglaEnabled = enabled; }
-
-
-
-
-
-
-
-LRESULT CALLBACK KeyboardProc(
-
-    int nCode,
-
-    WPARAM wParam,
-
-    LPARAM lParam
-
-)
-{
-
-
-    if(
-        nCode == HC_ACTION
-        &&
-        keyboardEnabled
-    )
-    {
-
-
-        KBDLLHOOKSTRUCT*
-        keyInfo =
-        reinterpret_cast<
-        KBDLLHOOKSTRUCT*
-        >
-        (lParam);
-
-
-
-        // Never reprocess Unicode events that Avro itself injects.
-        if ((keyInfo->flags & LLKHF_INJECTED) != 0) {
-          return CallNextHookEx(keyboardHook, nCode, wParam, lParam);
-        }
-
-        if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN)
-        {
-
-
-            DWORD key =
-                keyInfo->vkCode;
-
-
-
-            /*
-                Temporary debug output.
-
-                Later this will send
-                the key to Dart.
-            */
-
-
-            // std::cout
-            //     <<
-            //     "Key: "
-            //     <<
-            //     key
-            //     <<
-            //     std::endl;
-            char character =
-                MapVirtualKeyA(
-                    key,
-                    MAPVK_VK_TO_CHAR
-                );
-
-
-            // The documented language switch is handled before the general
-            // shortcut escape hatch, so the foreground app never receives it.
-            if (key == 'B' &&
-                (GetAsyncKeyState(VK_CONTROL) & 0x8000) &&
-                (GetAsyncKeyState(VK_MENU) & 0x8000)) {
-              SendKeyEvent("__toggle_language__");
-              return 1;
-            }
-
-            // Preserve OS and application shortcuts. Capturing Ctrl+C, Alt+Tab
-            // or Win shortcuts would make the desktop unusable while typing.
-            if ((GetAsyncKeyState(VK_CONTROL) & 0x8000) ||
-                (GetAsyncKeyState(VK_MENU) & 0x8000) ||
-                (GetAsyncKeyState(VK_LWIN) & 0x8000) ||
-                (GetAsyncKeyState(VK_RWIN) & 0x8000)) {
-              return CallNextHookEx(keyboardHook, nCode, wParam, lParam);
-            }
-
-            // English mode must be completely transparent.  In particular, do
-            // not forward keys to Dart: it could otherwise inject a second
-            // (Bangla) copy when the user later presses a word boundary.
-            if (!banglaEnabled) {
-              return CallNextHookEx(keyboardHook, nCode, wParam, lParam);
-            }
-
-            if (key == VK_SPACE) {
-                SendKeyEvent(" ");
-                return 1;
-            } else if (key == VK_BACK) {
-                SendKeyEvent("\b");
-                return 1;
-            } else if (key == VK_RETURN) {
-                SendKeyEvent("\n");
-                return 1;
-            } else if(character)
-            {
-                SendKeyEvent(std::string(1, static_cast<char>(
-                    std::tolower(static_cast<unsigned char>(character)))));
-                // Dart commits the current phonetic buffer by calling SendInput.
-                // Do not let the Latin source character reach the foreground app.
-                return 1;
-            }
-
-
-        }
-
-
-    }
-
-
-
-
-
-    return CallNextHookEx(
-
-        keyboardHook,
-
-        nCode,
-
-        wParam,
-
-        lParam
-
-    );
-
-
+bool StopKeyboardHook() {
+  bool success = true;
+  if (keyboard_hook != nullptr) {
+    success = UnhookWindowsHookEx(keyboard_hook) != FALSE;
+    keyboard_hook = nullptr;
+  }
+  keyboard_enabled = false;
+  suppressed_key_ups.fill(false);
+  return success;
 }
 
-
-
+void SetBanglaMode(bool enabled) {
+  bangla_enabled = enabled;
 }
+
+LRESULT CALLBACK KeyboardProc(int n_code, WPARAM w_param, LPARAM l_param) {
+  if (n_code != HC_ACTION || !keyboard_enabled) {
+    return CallNextHookEx(keyboard_hook, n_code, w_param, l_param);
+  }
+
+  const auto* key_info = reinterpret_cast<const KBDLLHOOKSTRUCT*>(l_param);
+
+  // SendInput-generated events must remain visible to the target application;
+  // intercepting them would create an injection loop.
+  if ((key_info->flags & LLKHF_INJECTED) != 0) {
+    return CallNextHookEx(keyboard_hook, n_code, w_param, l_param);
+  }
+
+  if (w_param == WM_KEYUP || w_param == WM_SYSKEYUP) {
+    return ConsumeSuppressedKeyUp(key_info->vkCode)
+               ? 1
+               : CallNextHookEx(keyboard_hook, n_code, w_param, l_param);
+  }
+
+  if (w_param != WM_KEYDOWN && w_param != WM_SYSKEYDOWN) {
+    return CallNextHookEx(keyboard_hook, n_code, w_param, l_param);
+  }
+
+  // This switch is intentionally processed before the normal modifier escape
+  // hatch so it works from both Bangla and English mode.
+  if (key_info->vkCode == 'B' && IsModifierDown(VK_CONTROL) &&
+      IsModifierDown(VK_MENU)) {
+    return DispatchAndSuppress(key_info->vkCode, "__toggle_language__")
+               ? 1
+               : CallNextHookEx(keyboard_hook, n_code, w_param, l_param);
+  }
+
+  // Do not capture OS and application shortcuts such as Alt+Tab or Ctrl+C.
+  if (IsModifierDown(VK_CONTROL) || IsModifierDown(VK_MENU) ||
+      IsModifierDown(VK_LWIN) || IsModifierDown(VK_RWIN) || !bangla_enabled) {
+    return CallNextHookEx(keyboard_hook, n_code, w_param, l_param);
+  }
+
+  switch (key_info->vkCode) {
+    case VK_SPACE:
+      return DispatchAndSuppress(key_info->vkCode, " ") ? 1
+                                                        : CallNextHookEx(
+                                                              keyboard_hook,
+                                                              n_code, w_param,
+                                                              l_param);
+    case VK_BACK:
+      return DispatchAndSuppress(key_info->vkCode, "\b") ? 1
+                                                         : CallNextHookEx(
+                                                               keyboard_hook,
+                                                               n_code, w_param,
+                                                               l_param);
+    case VK_RETURN:
+      return DispatchAndSuppress(key_info->vkCode, "\n") ? 1
+                                                         : CallNextHookEx(
+                                                               keyboard_hook,
+                                                               n_code, w_param,
+                                                               l_param);
+    case VK_TAB:
+      return DispatchAndSuppress(key_info->vkCode, "\t") ? 1
+                                                         : CallNextHookEx(
+                                                               keyboard_hook,
+                                                               n_code, w_param,
+                                                               l_param);
+    case VK_ESCAPE:
+      // Match normal IME behaviour: Escape first discards the uncommitted
+      // phonetic word instead of leaking a provisional Bengali rendering.
+      return DispatchAndSuppress(key_info->vkCode, "__cancel_composition__")
+                 ? 1
+                 : CallNextHookEx(keyboard_hook, n_code, w_param, l_param);
+    default:
+      break;
+  }
+
+  const auto key = PrintableKey(*key_info);
+  if (key && DispatchAndSuppress(key_info->vkCode, *key)) {
+    return 1;
+  }
+
+  return CallNextHookEx(keyboard_hook, n_code, w_param, l_param);
+}
+
+}  // namespace avro

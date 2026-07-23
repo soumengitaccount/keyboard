@@ -1,112 +1,202 @@
-/// Stateless, incremental-friendly phonetic renderer.
+import 'dart:convert';
+import 'dart:io';
+
+import 'avro_rule_data.dart';
+
+/// An ordered, context-aware implementation of the Avro phonetic scheme.
 ///
-/// It deliberately works from the complete Latin composition on every key
-/// press. That makes edits deterministic and lets [Transliterator] keep the
-/// original phonetic buffer for smart Backspace.
+/// A pattern may use its neighbouring source characters to choose a vowel's
+/// independent letter or kar, form a conjunct, or move `r` into a reph. This
+/// matters for inputs such as `banglay`, `kOI`, `arrk`, and `krri`; a simple
+/// longest-prefix transliterator cannot represent those contexts correctly.
 class PhoneticParser {
-  static const _hasanta = '্';
+  PhoneticParser() : _data = _AvroData.decode();
 
-  static const Map<String, String> _consonants = {
-    'kkh': 'ক্ষ',
-    'ng': 'ং',
-    'ngg': 'ঙ্গ',
-    'kh': 'খ',
-    'gh': 'ঘ',
-    'chh': 'ছ',
-    'ch': 'চ',
-    'jh': 'ঝ',
-    'th': 'থ',
-    'dh': 'ধ',
-    'ph': 'ফ',
-    'bh': 'ভ',
-    'sh': 'শ',
-    'tt': 'ট',
-    'dd': 'ড',
-    'rr': 'ড়',
-    'k': 'ক',
-    'g': 'গ',
-    'c': 'চ',
-    'j': 'জ',
-    't': 'ত',
-    'd': 'দ',
-    'n': 'ন',
-    'p': 'প',
-    'b': 'ব',
-    'm': 'ম',
-    'r': 'র',
-    'l': 'ল',
-    's': 'স',
-    'h': 'হ',
-    'y': 'য়',
-    'w': 'ও',
-    'f': 'ফ',
-    'v': 'ভ',
-    'z': 'য',
-    'q': 'ক',
-    'x': 'ক্স',
-  };
-
-  static const Map<String, _Vowel> _vowels = {
-    'ou': _Vowel('ঔ', 'ৌ'),
-    'oi': _Vowel('ঐ', 'ৈ'),
-    'aa': _Vowel('আ', 'া'),
-    'ii': _Vowel('ঈ', 'ী'),
-    'uu': _Vowel('ঊ', 'ূ'),
-    'a': _Vowel('আ', 'া'),
-    'i': _Vowel('ই', 'ি'),
-    'u': _Vowel('উ', 'ু'),
-    'e': _Vowel('এ', 'ে'),
-    'o': _Vowel('ও', 'ো'),
-  };
-
-  static final List<String> _rules = [..._consonants.keys, ..._vowels.keys]
-    ..sort((left, right) => right.length.compareTo(left.length));
+  final _AvroData _data;
 
   String parse(String input) {
-    final source = input.toLowerCase();
+    final source = _normalise(input);
     final output = StringBuffer();
-    var previousWasConsonant = false;
-    var index = 0;
 
+    var index = 0;
     while (index < source.length) {
-      String? rule;
-      for (final candidate in _rules) {
-        if (source.startsWith(candidate, index)) {
-          rule = candidate;
-          break;
-        }
-      }
-      if (rule == null) {
-        output.write(input[index]);
-        previousWasConsonant = false;
+      final pattern = _data.matchAt(source, index);
+      if (pattern == null) {
+        output.write(source[index]);
         index++;
         continue;
       }
 
-      final consonant = _consonants[rule];
-      if (consonant != null) {
-        // Anusvara is a combining nasal mark, not the start of a conjunct.
-        if (rule == 'ng') {
-          output.write(consonant);
-          previousWasConsonant = false;
-        } else {
-          if (previousWasConsonant) output.write(_hasanta);
-          output.write(consonant);
-          previousWasConsonant = true;
-        }
-      } else {
-        final vowel = _vowels[rule]!;
-        output.write(previousWasConsonant ? vowel.kar : vowel.letter);
-        previousWasConsonant = false;
-      }
-      index += rule.length;
+      final end = index + pattern.find.length;
+      final replacement = _replacementFor(pattern, source, index, end);
+      output.write(replacement);
+      index = end;
     }
     return output.toString();
   }
+
+  String _normalise(String input) {
+    final fixed = StringBuffer();
+    for (final codeUnit in input.codeUnits) {
+      final character = String.fromCharCode(codeUnit);
+      fixed.write(_data.isCaseSensitive(character)
+          ? character
+          : character.toLowerCase());
+    }
+    return fixed.toString();
+  }
+
+  String _replacementFor(
+    _Pattern pattern,
+    String source,
+    int start,
+    int end,
+  ) {
+    for (final rule in pattern.rules) {
+      if (rule.matches.every((match) => _matches(match, source, start, end))) {
+        return rule.replace;
+      }
+    }
+    return pattern.replace;
+  }
+
+  bool _matches(_ContextMatch match, String source, int start, int end) {
+    final position = match.type == _MatchType.suffix ? end : start - 1;
+    final negative = match.scope.startsWith('!');
+    final scope = negative ? match.scope.substring(1) : match.scope;
+
+    final bool matched;
+    switch (scope) {
+      case 'punctuation':
+        matched = position < 0 ||
+            position >= source.length ||
+            _data.isPunctuation(source[position]);
+      case 'vowel':
+        matched = position >= 0 &&
+            position < source.length &&
+            _data.isVowel(source[position]);
+      case 'consonant':
+        matched = position >= 0 &&
+            position < source.length &&
+            _data.isConsonant(source[position]);
+      case 'exact':
+        final value = match.value;
+        final exactStart =
+            match.type == _MatchType.suffix ? end : start - value.length;
+        final exactEnd =
+            match.type == _MatchType.suffix ? end + value.length : start;
+        matched = exactStart >= 0 &&
+            exactEnd <= source.length &&
+            source.substring(exactStart, exactEnd) == value;
+      default:
+        return false;
+    }
+    return negative ? !matched : matched;
+  }
 }
 
-class _Vowel {
-  const _Vowel(this.letter, this.kar);
-  final String letter;
-  final String kar;
+enum _MatchType { prefix, suffix }
+
+class _AvroData {
+  _AvroData({
+    required this.patterns,
+    required this.vowels,
+    required this.consonants,
+    required this.caseSensitive,
+  });
+
+  factory _AvroData.decode() {
+    final encoded = base64Decode(avroRuleData);
+    final json =
+        jsonDecode(utf8.decode(gzip.decode(encoded))) as Map<String, dynamic>;
+    return _AvroData(
+      patterns: (json['patterns'] as List<dynamic>)
+          .map((value) => _Pattern.fromJson(value as Map<String, dynamic>))
+          .toList(growable: false),
+      vowels: json['vowel'] as String,
+      consonants: json['consonant'] as String,
+      caseSensitive: json['casesensitive'] as String,
+    );
+  }
+
+  final List<_Pattern> patterns;
+  final String vowels;
+  final String consonants;
+  final String caseSensitive;
+
+  _Pattern? matchAt(String source, int index) {
+    for (final pattern in patterns) {
+      if (source.startsWith(pattern.find, index)) return pattern;
+    }
+    return null;
+  }
+
+  bool isVowel(String character) => vowels.contains(character.toLowerCase());
+
+  bool isConsonant(String character) =>
+      consonants.contains(character.toLowerCase());
+
+  bool isPunctuation(String character) =>
+      !isVowel(character) && !isConsonant(character);
+
+  bool isCaseSensitive(String character) =>
+      caseSensitive.contains(character.toLowerCase());
+}
+
+class _Pattern {
+  const _Pattern({
+    required this.find,
+    required this.replace,
+    required this.rules,
+  });
+
+  factory _Pattern.fromJson(Map<String, dynamic> json) {
+    return _Pattern(
+      find: json['find'] as String,
+      replace: json['replace'] as String,
+      rules: ((json['rules'] as List<dynamic>?) ?? const <dynamic>[])
+          .map((value) => _Rule.fromJson(value as Map<String, dynamic>))
+          .toList(growable: false),
+    );
+  }
+
+  final String find;
+  final String replace;
+  final List<_Rule> rules;
+}
+
+class _Rule {
+  const _Rule({required this.matches, required this.replace});
+
+  factory _Rule.fromJson(Map<String, dynamic> json) {
+    return _Rule(
+      matches: (json['matches'] as List<dynamic>)
+          .map((value) => _ContextMatch.fromJson(value as Map<String, dynamic>))
+          .toList(growable: false),
+      replace: json['replace'] as String,
+    );
+  }
+
+  final List<_ContextMatch> matches;
+  final String replace;
+}
+
+class _ContextMatch {
+  const _ContextMatch({
+    required this.type,
+    required this.scope,
+    required this.value,
+  });
+
+  factory _ContextMatch.fromJson(Map<String, dynamic> json) {
+    return _ContextMatch(
+      type: json['type'] == 'suffix' ? _MatchType.suffix : _MatchType.prefix,
+      scope: json['scope'] as String,
+      value: json['value'] as String? ?? '',
+    );
+  }
+
+  final _MatchType type;
+  final String scope;
+  final String value;
 }

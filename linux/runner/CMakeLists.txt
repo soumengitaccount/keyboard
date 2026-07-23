@@ -12,6 +12,12 @@ add_executable(${BINARY_NAME}
   "${FLUTTER_MANAGED_DIR}/generated_plugin_registrant.cc"
 )
 
+if(BANGLA_KEYBOARD_ENABLE_IBUS)
+  target_sources(${BINARY_NAME} PRIVATE "ibus_bridge.cc")
+  target_compile_definitions(${BINARY_NAME}
+    PRIVATE BANGLA_KEYBOARD_ENABLE_IBUS=1)
+endif()
+
 # Apply the standard set of build settings. This can be removed for applications
 # that need different build settings.
 apply_standard_settings(${BINARY_NAME})
@@ -22,5 +28,8 @@ add_definitions(-DAPPLICATION_ID="${APPLICATION_ID}")
 # Add dependency libraries. Add any application-specific dependencies here.
 target_link_libraries(${BINARY_NAME} PRIVATE flutter)
 target_link_libraries(${BINARY_NAME} PRIVATE PkgConfig::GTK)
+if(BANGLA_KEYBOARD_ENABLE_IBUS)
+  target_link_libraries(${BINARY_NAME} PRIVATE PkgConfig::IBUS)
+endif()
 
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")

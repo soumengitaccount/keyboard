@@ -9,6 +9,9 @@ set(BINARY_NAME "bangla-keyboard")
 # https://wiki.gnome.org/HowDoI/ChooseApplicationID
 set(APPLICATION_ID "com.banglakeyboard.app")
 
+option(BANGLA_KEYBOARD_ENABLE_IBUS
+  "Build the IBus input-method engine used on Linux and Wayland" ON)
+
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
 # versions of CMake.
 cmake_policy(SET CMP0063 NEW)
@@ -54,6 +57,9 @@ add_subdirectory(${FLUTTER_MANAGED_DIR})
 # System-level dependencies.
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GTK REQUIRED IMPORTED_TARGET gtk+-3.0)
+if(BANGLA_KEYBOARD_ENABLE_IBUS)
+  pkg_check_modules(IBUS REQUIRED IMPORTED_TARGET ibus-1.0)
+endif()
 
 # Application build; see runner/CMakeLists.txt.
 add_subdirectory("runner")

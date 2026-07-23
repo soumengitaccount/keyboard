@@ -1,0 +1,28 @@
+// Avro phonetic rule corpus (289 ordered patterns, including contextual
+// replacements). The data is stored compressed to keep the source tree
+// readable; see THIRD_PARTY_NOTICES.md for provenance and license terms.
+//
+// Decode with `utf8.decode(gzip.decode(base64Decode(avroRuleData)))`.
+const String avroRuleData =
+    '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'
+    '2iosR+Vm/wJcbhSdioqJ2Lz0L3ARBTKhOQAA';

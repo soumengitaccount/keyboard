@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component>
+  <name>org.freedesktop.IBus.BanglaAvro</name>
+  <description>Bangla Avro phonetic input method</description>
+  <exec>/opt/bangla-keyboard/bangla-keyboard --ibus-engine</exec>
+  <version>1.0.0</version>
+  <author>Bangla Keyboard contributors</author>
+  <license>Unknown</license>
+  <homepage>https://github.com/soumenbar/keyboard</homepage>
+  <textdomain>bangla-keyboard</textdomain>
+  <engines>
+    <engine>
+      <name>bangla-avro</name>
+      <longname>Bangla Avro</longname>
+      <description>Avro-style Bangla phonetic keyboard</description>
+      <language>bn</language>
+      <license>Unknown</license>
+      <author>Bangla Keyboard contributors</author>
+      <icon>/usr/share/icons/hicolor/512x512/apps/bangla-keyboard.png</icon>
+      <layout>us</layout>
+      <rank>80</rank>
+      <symbol>অ</symbol>
+    </engine>
+  </engines>
+</component>

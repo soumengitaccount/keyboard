@@ -5,6 +5,7 @@
 #include "flutter/generated_plugin_registrant.h"
 
 #include "native_bridge.h"
+#include "keyboard_hook.h"
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
@@ -42,6 +43,10 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  // The low-level hook is process-global. Release it before the Flutter engine
+  // and its EventChannel sink are destroyed so a late key event cannot target
+  // a stale messenger during shutdown.
+  avro::StopKeyboardHook();
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }

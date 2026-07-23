@@ -4,6 +4,6 @@ Section: utils
 Priority: optional
 Architecture: amd64
 Maintainer: Bangla Keyboard Maintainers <maintainers@example.invalid>
-Depends: libgtk-3-0, libblkid1, liblzma5, libstdc++6
+Depends: ibus, libibus-1.0-5, libgtk-3-0, libblkid1, liblzma5, libstdc++6
 Description: Modern Avro-style Bangla keyboard for desktop Linux
  A Flutter desktop application for typing Bangla with Avro-style phonetic input.

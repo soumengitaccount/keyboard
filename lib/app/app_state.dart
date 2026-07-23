@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../services/keyboard_service.dart';
+import '../services/native_bridge.dart';
 import '../services/preferences.dart';
 
 /// Application-wide state exposed to widgets. Native input remains in
@@ -26,9 +27,13 @@ class LanguageController extends ChangeNotifier {
 
   Future<void> setBanglaEnabled(bool value) async {
     if (_banglaEnabled == value) return;
+    if (!value) {
+      await KeyboardService.instance.commit();
+    }
     _banglaEnabled = value;
     notifyListeners();
     await PreferencesService.instance.setBanglaMode(value);
+    await NativeBridge.instance.toggleLanguage(value);
   }
 }
 

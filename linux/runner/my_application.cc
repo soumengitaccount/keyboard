@@ -7,16 +7,23 @@
 
 #include "flutter/generated_plugin_registrant.h"
 
+#ifdef BANGLA_KEYBOARD_ENABLE_IBUS
+#include "ibus_bridge.h"
+#endif
+
 struct _MyApplication {
   GtkApplication parent_instance;
   char** dart_entrypoint_arguments;
+  gboolean ibus_engine_mode;
 };
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
 
 // Called when first Flutter frame received.
 static void first_frame_cb(MyApplication* self, FlView* view) {
-  gtk_widget_show(gtk_widget_get_toplevel(GTK_WIDGET(view)));
+  if (!self->ibus_engine_mode) {
+    gtk_widget_show(gtk_widget_get_toplevel(GTK_WIDGET(view)));
+  }
 }
 
 // Implements GApplication::activate.
@@ -75,6 +82,14 @@ static void my_application_activate(GApplication* application) {
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
 
+#ifdef BANGLA_KEYBOARD_ENABLE_IBUS
+  if (self->ibus_engine_mode &&
+      !avro_ibus_initialize(
+          fl_engine_get_binary_messenger(fl_view_get_engine(view)))) {
+    g_warning("Bangla Avro could not initialize its IBus engine.");
+  }
+#endif
+
   gtk_widget_grab_focus(GTK_WIDGET(view));
 }
 
@@ -110,9 +125,13 @@ static void my_application_startup(GApplication* application) {
 
 // Implements GApplication::shutdown.
 static void my_application_shutdown(GApplication* application) {
-  // MyApplication* self = MY_APPLICATION(object);
+  MyApplication* self = MY_APPLICATION(application);
 
-  // Perform any actions required at application shutdown.
+#ifdef BANGLA_KEYBOARD_ENABLE_IBUS
+  if (self->ibus_engine_mode) {
+    avro_ibus_shutdown();
+  }
+#endif
 
   G_APPLICATION_CLASS(my_application_parent_class)->shutdown(application);
 }
@@ -133,16 +152,18 @@ static void my_application_class_init(MyApplicationClass* klass) {
   G_OBJECT_CLASS(klass)->dispose = my_application_dispose;
 }
 
-static void my_application_init(MyApplication* self) {}
+static void my_application_init(MyApplication* self) { self->ibus_engine_mode = FALSE; }
 
-MyApplication* my_application_new() {
+MyApplication* my_application_new(gboolean ibus_engine_mode) {
   // Set the program name to the application ID, which helps various systems
   // like GTK and desktop environments map this running application to its
   // corresponding .desktop file. This ensures better integration by allowing
   // the application to be recognized beyond its binary name.
   g_set_prgname(APPLICATION_ID);
 
-  return MY_APPLICATION(g_object_new(my_application_get_type(),
-                                     "application-id", APPLICATION_ID, "flags",
-                                     G_APPLICATION_NON_UNIQUE, nullptr));
+  MyApplication* application = MY_APPLICATION(g_object_new(
+      my_application_get_type(), "application-id", APPLICATION_ID, "flags",
+      G_APPLICATION_NON_UNIQUE, nullptr));
+  application->ibus_engine_mode = ibus_engine_mode;
+  return application;
 }

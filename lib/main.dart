@@ -17,16 +17,22 @@ import 'database/dictionary_database.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // extarnally added
+
+  if (Platform.isLinux &&
+      Platform.executableArguments.contains('--ibus-engine')) {
+    await _runIbusEngine();
+    return;
+  }
+
   await PreferencesService.instance.initialize();
   await DictionaryService.instance.load();
-  await KeyboardService.instance.initialize();
   await NativeBridge.instance.toggleLanguage(
     PreferencesService.instance.banglaMode,
   );
-  if (NativeBridge.instance.supportsGlobalKeyboard) {
-    KeyEventListener().start();
+  if (NativeBridge.instance.supportsKeyboardInput) {
+    KeyEventListener.instance.start();
   }
+  await KeyboardService.instance.initialize();
   await CandidateWindowService.instance.initialize();
   // Initialize desktop window APIs
   await Window.initialize();
@@ -71,4 +77,19 @@ Future<void> main() async {
   // runApp(
   //   const AvroApp(),
   // );
+}
+
+/// IBus starts the packaged executable with `--ibus-engine`. Keep this Dart
+/// isolate deliberately headless: it owns the phonetic composition state and
+/// communicates with the IBus native runner over the usual platform channels,
+/// while the normal executable remains the settings and tray UI.
+Future<void> _runIbusEngine() async {
+  await PreferencesService.instance.initialize();
+  await DictionaryService.instance.load();
+  await NativeBridge.instance.toggleLanguage(
+    PreferencesService.instance.banglaMode,
+  );
+  KeyEventListener.instance.start();
+  await KeyboardService.instance.initialize();
+  runApp(const SizedBox.shrink());
 }

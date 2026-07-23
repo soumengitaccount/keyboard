@@ -18,7 +18,9 @@ void InitializeKeyEventChannel(
 
 
 
-void SendKeyEvent(const std::string& key);
+/// Returns false until Dart subscribes to the EventChannel. The hook uses that
+/// to let source input through during startup instead of dropping it.
+bool SendKeyEvent(const std::string& key);
 
 
 

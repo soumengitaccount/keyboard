@@ -23,6 +23,11 @@ if ! command -v clang++ >/dev/null 2>&1 && ! command -v g++ >/dev/null 2>&1; the
   exit 1
 fi
 
+if ! pkg-config --exists ibus-1.0; then
+  echo "IBus development files are required. Install libibus-1.0-dev before building." >&2
+  exit 1
+fi
+
 rm -rf "$project_dir/build/linux"
 flutter build linux --release
 
@@ -33,13 +38,16 @@ if [ ! -x "$bundle_dir/$package_name" ]; then
 fi
 
 mkdir -p "$app_dir" "$deb_dir" "$staging_dir/usr/bin" \
-  "$staging_dir/usr/share/applications" "$staging_dir/usr/share/icons/hicolor/512x512/apps"
+  "$staging_dir/usr/share/applications" "$staging_dir/usr/share/ibus/component" \
+  "$staging_dir/usr/share/icons/hicolor/512x512/apps"
 cp -a "$bundle_dir/." "$app_dir/"
 install -m 0755 "$project_dir/packaging/debian/bangla-keyboard" "$staging_dir/usr/bin/$package_name"
 install -m 0644 "$project_dir/packaging/debian/bangla-keyboard.desktop" \
   "$staging_dir/usr/share/applications/$package_name.desktop"
 install -m 0644 "$project_dir/web/icons/Icon-512.png" \
   "$staging_dir/usr/share/icons/hicolor/512x512/apps/$package_name.png"
+install -m 0644 "$project_dir/packaging/ibus/bangla-avro.xml" \
+  "$staging_dir/usr/share/ibus/component/bangla-avro.xml"
 
 sed -e "s/^Version:.*/Version: $version/" -e "s/^Architecture:.*/Architecture: $architecture/" \
   "$control_template" > "$deb_dir/control"

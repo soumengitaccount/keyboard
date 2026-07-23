@@ -36,10 +36,10 @@ class KeyboardService extends ChangeNotifier {
 
   Future<void> initialize() async {
     _enabled = PreferencesService.instance.keyboardEnabled &&
-        NativeBridge.instance.supportsGlobalKeyboard;
+        NativeBridge.instance.supportsKeyboardInput;
 
     if (_enabled) {
-      await NativeBridge.instance.enableKeyboard();
+      _enabled = await NativeBridge.instance.enableKeyboard();
     }
   }
 
@@ -50,12 +50,16 @@ class KeyboardService extends ChangeNotifier {
   Future<void> setEnabled(
     bool value,
   ) async {
-    _enabled = value && NativeBridge.instance.supportsGlobalKeyboard;
+    if (!value && _enabled) {
+      await commit();
+    }
+
+    _enabled = value && NativeBridge.instance.supportsKeyboardInput;
 
     await PreferencesService.instance.setKeyboardEnabled(value);
 
     if (_enabled) {
-      await NativeBridge.instance.enableKeyboard();
+      _enabled = await NativeBridge.instance.enableKeyboard();
     } else {
       await NativeBridge.instance.disableKeyboard();
     }
@@ -97,13 +101,9 @@ class KeyboardService extends ChangeNotifier {
     final corrected = _autoCorrect.correct(phoneticInput);
     final finalText = corrected == phoneticInput ? _preview : corrected;
 
-    await NativeBridge.instance.sendText(
+    await NativeBridge.instance.commitComposition(
       finalText,
     );
-    // await NativeBridge.instance
-    //     .sendText(
-    //       _preview,
-    //     );
 
     clear();
   }
@@ -141,6 +141,12 @@ class KeyboardService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Cancels the active provisional text and resets its phonetic source.
+  Future<void> cancelComposition() async {
+    await NativeBridge.instance.cancelComposition();
+    clear();
+  }
+
   // ------------------------------------------------------------
   // Select suggestion
   // ------------------------------------------------------------
@@ -148,7 +154,7 @@ class KeyboardService extends ChangeNotifier {
   Future<void> selectCandidate(
     String word,
   ) async {
-    await NativeBridge.instance.sendText(
+    await NativeBridge.instance.commitComposition(
       word,
     );
 

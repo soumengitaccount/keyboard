@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/app_state.dart';
@@ -45,14 +47,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 }
               },
               items: const [
-                DropdownMenuItem(value: ThemeMode.system, child: Text('System')),
+                DropdownMenuItem(
+                    value: ThemeMode.system, child: Text('System')),
                 DropdownMenuItem(value: ThemeMode.light, child: Text('Light')),
                 DropdownMenuItem(value: ThemeMode.dark, child: Text('Dark')),
               ],
             )),
         SettingCard(
             title: 'Enable Avro Keyboard',
-            description: 'Listen for global keys and send Unicode Bangla text.',
+            description: Platform.isLinux
+                ? 'Use the Bangla Avro (IBus) input source to type in other apps.'
+                : 'Listen for global keys and send Unicode Bangla text.',
             trailing: AnimatedBuilder(
                 animation: ref.watch(keyboardServiceProvider),
                 builder: (_, __) => Switch(
